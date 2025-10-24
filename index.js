@@ -9,14 +9,17 @@ import configRoutes from "./routes/config.js"; // ✅ new config route
 import webhookRoutes from "./routes/webhook.js";
 import { pool } from "./db.js"; // Import pool to check connection
 
-dotenv.config();
+// ✅ Only load .env file if not in production
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const app = express();
 
 // ✅ CORS first - Updated to include DELETE method
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend origin
+    origin: "http://localhost:5173", // frontend origin - REMEMBER TO UPDATE THIS LATER FOR VERCEL
     methods: ["GET", "POST", "DELETE"], // ✅ Added DELETE method
     allowedHeaders: ["Content-Type"],
   })
@@ -32,7 +35,7 @@ app.use("/api/webhook", webhookRoutes);
 app.use("/api/config", configRoutes); // ✅ added config route
 
 // ✅ Start server with DB connection check
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4000; // Render provides PORT
 app.listen(PORT, async () => { // Added async here
   console.log(`✅ PayBridge backend running securely on port ${PORT}`);
   // Add a connection check on startup
