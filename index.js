@@ -16,10 +16,10 @@ if (process.env.NODE_ENV !== 'production') {
 
 const app = express();
 
-// ✅ CORS first - Updated to include DELETE method
+// ✅ CORS first - Updated to include DELETE method and Vercel URL
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend origin - REMEMBER TO UPDATE THIS LATER FOR VERCEL
+    origin: ["http://localhost:5173", "https://paybridge-frontend-sooty.vercel.app"], // ✅ Needs to be an array of strings
     methods: ["GET", "POST", "DELETE"], // ✅ Added DELETE method
     allowedHeaders: ["Content-Type"],
   })
