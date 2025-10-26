@@ -5,17 +5,25 @@ import generateReceipt from "../utils/generateReceipt.js";
 
 const router = express.Router();
 
-// 🧾 Create invoice
+// 🧾 Create invoice (UPDATED)
 router.post("/", async (req, res) => {
   try {
-    const { client_name, description, amount, wallet_address } = req.body;
+    // 1. Get new fields from req.body (wallet_address removed)
+    const { client_name, description, amount, client_email, client_phone } =
+      req.body;
     const invoice_id = "INV" + Date.now();
 
+    // 2. Handle optional fields (set to null if empty)
+    const email = client_email || null;
+    const phone = client_phone || null;
+
+    // 3. Update SQL query to use new columns
     const result = await pool.query(
-      `INSERT INTO invoices (invoice_id, client_name, description, amount, wallet_address)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO invoices (invoice_id, client_name, description, amount, client_email, client_phone)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [invoice_id, client_name, description, amount, wallet_address]
+      // 4. Update parameter array
+      [invoice_id, client_name, description, amount, email, phone]
     );
 
     res.json({
@@ -101,7 +109,9 @@ router.delete("/:id", async (req, res) => {
     // Ensure id is a valid number before querying
     const numericId = parseInt(id, 10);
     if (isNaN(numericId)) {
-        return res.status(400).json({ success: false, message: "Invalid invoice ID format" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid invoice ID format" });
     }
 
     const result = await pool.query(
@@ -110,15 +120,18 @@ router.delete("/:id", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: "Invoice not found for deletion" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Invoice not found for deletion" });
     }
 
     console.log(`🗑️ Invoice with DB ID ${numericId} deleted`);
     res.json({ success: true, message: "Invoice deleted successfully" });
-
   } catch (err) {
     console.error("Error deleting invoice:", err); // Log the specific error
-    res.status(500).json({ success: false, message: "Server error during deletion" });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during deletion" });
   }
 });
 
@@ -127,12 +140,18 @@ router.delete("/", async (req, res) => {
   try {
     const result = await pool.query("DELETE FROM invoices RETURNING id");
 
-    console.log(`🗑️ Cleared all invoice history. ${result.rowCount} invoices deleted.`);
-    res.json({ success: true, message: `Successfully deleted ${result.rowCount} invoices.` });
-
+    console.log(
+      `🗑️ Cleared all invoice history. ${result.rowCount} invoices deleted.`
+    );
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.rowCount} invoices.`,
+    });
   } catch (err) {
     console.error("Error clearing invoice history:", err); // Log the specific error
-    res.status(500).json({ success: false, message: "Server error while clearing history" });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error while clearing history" });
   }
 });
 

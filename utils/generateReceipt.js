@@ -1,9 +1,9 @@
 // utils/generateReceipt.js
 import PDFDocument from "pdfkit";
-import path from "path";
-import fs from "fs";
+import axios from "axios"; // Import axios
 
-export default function generateReceipt(invoice, res) {
+// --- We must make the function async to fetch the logo ---
+export default async function generateReceipt(invoice, res) {
   try {
     const doc = new PDFDocument({ margin: 50 });
 
@@ -17,75 +17,96 @@ export default function generateReceipt(invoice, res) {
     // pipe PDF to HTTP response
     doc.pipe(res);
 
-    // ======= HEADER SECTION =======
-    const logoPath = path.resolve("public/logo.png"); // optional if you have a logo
-    if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, 50, 45, { width: 60 });
+    // ======= HEADER SECTION (IMPROVED) =======
+
+    // --- Fetch Logo from URL ---
+    // !!! REPLACE THIS with your logo's public URL (e.g., from Vercel)
+    const logoUrl = "https://paybridge-frontend-sooty.vercel.app/logo-paybridge.png"; 
+    
+    try {
+      const logoResponse = await axios.get(logoUrl, {
+        responseType: "arraybuffer", // Get image as a buffer
+      });
+      const logoBuffer = Buffer.from(logoResponse.data, "binary");
+      // Draw the logo on the left
+      doc.image(logoBuffer, 50, 45, { width: 60 });
+    } catch (logoError) {
+      console.error("Could not fetch logo for PDF:", logoError.message);
+      // If logo fails, just write text
+      doc.fontSize(10).fillColor("#999").text("PayBridge", 50, 45);
     }
+
+    // --- Draw Business Info on the Right ---
     doc
       .fillColor("#333")
       .fontSize(20)
-      .text("PAYBRIDGE RECEIPT", 120, 50, { align: "left" })
-      .moveDown(2);
+      .text("PAYBRIDGE", 200, 50, { align: "right" }) // Aligned to the right
+      .fontSize(14)
+      .fillColor("#555")
+      .text("RECEIPT", 200, 75, { align: "right" }) // Sub-header
+      .moveDown(3); // More space after header
 
-    // invoice metadata box
+    // ======= METADATA & CLIENT DETAILS =======
+    
+    // --- Invoice Metadata (Left) ---
+    const metadataY = doc.y; // Save Y position
     doc
       .fontSize(12)
       .fillColor("#000")
       .text(`Invoice ID: ${invoice.invoice_id}`)
       .text(`Status: ${invoice.status}`)
-      .text(`Date: ${new Date(invoice.created_at).toLocaleString()}`)
-      .moveDown();
+      .text(`Date: ${new Date(invoice.created_at).toLocaleString()}`);
+      
+    // --- Client Details (Right) ---
+    doc
+      .fontSize(12)
+      .fillColor("#000")
+      .text(`Billed To:`, 300, metadataY) // Align with metadata
+      .text(invoice.client_name || "N/A", 300, doc.y)
+      .text(invoice.client_email || "Not provided", 300, doc.y)
+      .text(invoice.client_phone || "Not provided", 300, doc.y)
+      .moveDown(2);
+
 
     // draw line
     doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor("#999").stroke().moveDown(1.5);
 
-    // ======= CLIENT DETAILS =======
+    // ======= INVOICE DETAILS (Payment Summary) =======
     doc
       .fontSize(14)
-      .fillColor("#007BFF")
-      .text("Billed To", { underline: true })
-      .moveDown(0.5)
-      .fontSize(12)
-      .fillColor("#000")
-      .text(`Client Name: ${invoice.client_name || "N/A"}`)
-      .text(`Wallet Address: ${invoice.wallet_address || "N/A"}`)
-      .moveDown(1.5);
-
-    // ======= INVOICE DETAILS =======
-    doc
-      .fontSize(14)
-      .fillColor("#007BFF")
-      .text("Payment Summary", { underline: true })
+      .fillColor("#333") // Darker color for summary
+      .text("Payment Summary", 50, doc.y)
       .moveDown(0.5);
 
-    const startX = 50;
     const startY = doc.y;
-    const columnWidth = 200;
+    
+    // Table Headers
+    doc
+      .fontSize(12)
+      .fillColor("#555") // Grey for headers
+      .text("Description", 50, startY)
+      .text("Amount (USD)", 450, startY, { align: "right" });
 
+    doc.moveTo(50, doc.y + 5).lineTo(550, doc.y + 5).strokeColor("#ccc").stroke().moveDown(1);
+      
+    // Table Content
     doc
       .fontSize(12)
       .fillColor("#000")
-      .text("Description", startX, startY)
-      .text("Amount (USD)", startX + columnWidth * 2, startY)
-      .moveDown(0.5)
-      .text(invoice.description || "N/A", startX, doc.y)
-      .text(`$${invoice.amount}`, startX + columnWidth * 2, doc.y);
-
-    // draw box under items
-    doc
-      .moveTo(50, doc.y + 10)
-      .lineTo(550, doc.y + 10)
-      .strokeColor("#007BFF")
-      .stroke()
-      .moveDown(1.5);
+      .text(invoice.description || "N/A", 50, doc.y)
+      .text(`$${parseFloat(invoice.amount).toFixed(2)}`, 450, doc.y, { align: "right" });
+    
+    doc.moveDown(2);
+    
+    // draw line
+    doc.moveTo(300, doc.y).lineTo(550, doc.y).strokeColor("#999").stroke().moveDown(1);
 
     // ======= TOTAL SECTION =======
     doc
-      .fontSize(14)
+      .fontSize(16) // Larger total
       .fillColor("#000")
-      .text(`Total: $${invoice.amount}`, { align: "right" })
-      .moveDown(2);
+      .text(`Total Paid: $${parseFloat(invoice.amount).toFixed(2)}`, { align: "right" })
+      .moveDown(3);
 
     // ======= FOOTER =======
     doc
@@ -98,6 +119,8 @@ export default function generateReceipt(invoice, res) {
     doc.end();
   } catch (err) {
     console.error("Error generating receipt:", err);
-    res.status(500).send("Error generating receipt");
+    if (!res.headersSent) {
+      res.status(500).send("Error generating receipt");
+    }
   }
 }
