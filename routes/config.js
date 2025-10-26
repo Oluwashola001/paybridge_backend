@@ -9,15 +9,29 @@ if (process.env.NODE_ENV !== 'production') {
 
 const router = express.Router();
 
-// Secure endpoint to send Transak key to frontend
+// ❌ REMOVED: Transak key endpoint is no longer needed
+/*
 router.get("/transak-key", (req, res) => {
-  // ❌ REMOVED: The hardcoded CORS policy is removed here 
-  // const allowedOrigin = "http://localhost:5173"; 
-  // res.setHeader("Access-Control-Allow-Origin", allowedOrigin); 
-  
-  // ✅ The global CORS middleware in index.js now handles the header
-
+  // ... old Transak code ...
   res.json({ apiKey: process.env.TRANSAK_API_KEY });
+});
+*/
+
+// ✅ ADDED: Flutterwave public key endpoint
+router.get("/flutterwave-key", (req, res) => {
+  // The global CORS middleware in index.js handles allowed origins
+
+  // Ensure FLUTTERWAVE_PUBLIC_KEY is set in your .env / Render environment
+  const publicKey = process.env.FLUTTERWAVE_PUBLIC_KEY;
+
+  if (!publicKey) {
+      console.error("CRITICAL ERROR: FLUTTERWAVE_PUBLIC_KEY is not set in environment variables!");
+      // Don't send the key if it's missing
+      return res.status(500).json({ error: "Payment processor configuration error on server." });
+  }
+
+  // Send the public key
+  res.json({ publicKey: publicKey });
 });
 
 export default router;
